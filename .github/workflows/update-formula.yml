@@ -22,9 +22,9 @@ jobs:
       - name: Get latest release info
         id: release
         run: |
-          LATEST_TAG=${{ github.event.release.tag_name }}
+          LATEST_TAG=$(curl -s "https://api.github.com/repos/kyoshidajp/clipmerge/releases/latest" | jq -r .tag_name)
           echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-          echo "LATEST_VERSION=${LATEST_TAG#v}" >> $GITHUB_ENV  # "v1.0.0" -> "1.0.0"
+          echo "LATEST_VERSION=${LATEST_TAG#v}" >> $GITHUB_ENV
 
       - name: Download latest release assets
         run: |
