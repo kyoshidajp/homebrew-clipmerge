@@ -1,0 +1,66 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout homebrew-clipmerge repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Get latest release info
+        id: release
+        run: |
+          LATEST_TAG=${{ github.event.release.tag_name }}
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
+          echo "LATEST_VERSION=${LATEST_TAG#v}" >> $GITHUB_ENV  # "v1.0.0" -> "1.0.0"
+
+      - name: Download latest release assets
+        run: |
+          mkdir -p dist
+          wget -O dist/clipmerge_darwin_amd64.tar.gz https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_darwin_amd64.tar.gz
+          wget -O dist/clipmerge_darwin_arm64.tar.gz https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_darwin_arm64.tar.gz
+          wget -O dist/clipmerge_linux_amd64.tar.gz https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_linux_amd64.tar.gz
+          wget -O dist/clipmerge_linux_arm64.tar.gz https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_linux_arm64.tar.gz
+
+      - name: Calculate SHA256 checksums
+        run: |
+          cd dist
+          echo "SHA_DARWIN_AMD64=$(shasum -a 256 clipmerge_darwin_amd64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+          echo "SHA_DARWIN_ARM64=$(shasum -a 256 clipmerge_darwin_arm64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+          echo "SHA_LINUX_AMD64=$(shasum -a 256 clipmerge_linux_amd64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+          echo "SHA_LINUX_ARM64=$(shasum -a 256 clipmerge_linux_arm64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+
+      - name: Update Homebrew Formula
+        run: |
+          FORMULA_PATH="Formula/clipmerge.rb"
+          sed -i'' -E "s|version \".*\"|version \"${LATEST_VERSION}\"|" $FORMULA_PATH
+          sed -i'' -E "s|url \"https://github.com/kyoshidajp/clipmerge/releases/download/v.*?/clipmerge_darwin_amd64.tar.gz\"|url \"https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_darwin_amd64.tar.gz\"|" $FORMULA_PATH
+          sed -i'' -E "s|sha256 \".*\"|sha256 \"${SHA_DARWIN_AMD64}\"|" $FORMULA_PATH
+
+          sed -i'' -E "s|url \"https://github.com/kyoshidajp/clipmerge/releases/download/v.*?/clipmerge_darwin_arm64.tar.gz\"|url \"https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_darwin_arm64.tar.gz\"|" $FORMULA_PATH
+          sed -i'' -E "s|sha256 \".*\"|sha256 \"${SHA_DARWIN_ARM64}\"|" $FORMULA_PATH
+
+          sed -i'' -E "s|url \"https://github.com/kyoshidajp/clipmerge/releases/download/v.*?/clipmerge_linux_amd64.tar.gz\"|url \"https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_linux_amd64.tar.gz\"|" $FORMULA_PATH
+          sed -i'' -E "s|sha256 \".*\"|sha256 \"${SHA_LINUX_AMD64}\"|" $FORMULA_PATH
+
+          sed -i'' -E "s|url \"https://github.com/kyoshidajp/clipmerge/releases/download/v.*?/clipmerge_linux_arm64.tar.gz\"|url \"https://github.com/kyoshidajp/clipmerge/releases/download/${LATEST_TAG}/clipmerge_linux_arm64.tar.gz\"|" $FORMULA_PATH
+          sed -i'' -E "s|sha256 \".*\"|sha256 \"${SHA_LINUX_ARM64}\"|" $FORMULA_PATH
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/clipmerge.rb
+          git commit -m "Update clipmerge formula to ${LATEST_VERSION}"
+          git push origin main
